@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="manifest.json">
+  <title>Accommodation Booking Calendar</title>
+  <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #calendar {
+      flex: 3;
+      padding: 1rem;
+    }
+    #sidebar {
+      flex: 1;
+      background-color: #f9f9f9;
+      border-left: 1px solid #ccc;
+      padding: 1rem;
+      box-sizing: border-box;
+    }
+    .refresh-button {
+      display: inline-block;
+      margin-bottom: 1rem;
+      padding: 0.5rem 1rem;
+      background-color: #007aff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .refresh-button:hover {
+      background-color: #0058b3;
+    }
+    .error-message {
+      color: red;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="calendar"></div>
+  <div id="sidebar">
+    <button class="refresh-button" onclick="loadAllEvents()">Refresh Calendar</button>
+    <div id="next-booking"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/dist/fullcalendar.min.js"></script>
+  <script src="ical-data.js"></script> <!-- Your ics data script here -->
+  
+  <script>
+    let icalUrls = [
+      // Airbnb booking
+      {
+        url: 'airbnb-booking.ics',
+        color: 'blue'
+      },
+      
+      // Booking.com booking
+      {
+        url: 'booking-com-booking.ics',
+        color: 'green'
+      },
+      
+      // VRBO booking
+      {
+        url: 'vrbo-booking.ics',
+        color: 'yellow'
+      },
+      
+      // Offline booking
+      {
+        url: 'offline-booking.ics',
+        color: 'red'
+      }
+    ];
+
+    let calendarEl = document.getElementById('calendar');
+    let sidebarEl = document.getElementById('sidebar');
+    let nextBookingElement = document.getElementById('next-booking');
+
+    function loadAllEvents() {
+      const allEvents = [];
+      const now = new Date();
+      
+      icalUrls.forEach((event) => {
+        try {
+          const response = fetch(event.url);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const blobUrl = URL.createObjectURL(response.blob());
+          const text = response.text();
+          const events = parseICS(text, event.color, 'color');
+          
+          // Add a priority score to each event
+          events.forEach((event) => {
+            if (event.source === 'Offline') {
+              event.priority = 3; // Offline bookings take priority
+            } else if (event.source === 'Booking.com') {
+              event.priority = 2; // Booking.com bookings are second priority
+            } else if (event.source === 'VRBO') {
+              event.priority = 1; // VRBO bookings are third priority
+            } else if (event.source === 'Airbnb') {
+              event.priority = 0; // Airbnb bookings are last priority
+            }
+          });
+          
+          allEvents.push(...events);
+        } catch (err) {
+          console.error(`Failed to load ${event.source}:`, err);
+          sidebarEl.querySelector('.error-message').innerText = `Error loading data for ${event.source}.`;
+        }
+      });
+      
+      // Sort events by priority
+      allEvents.sort((a, b) => b.priority - a.priority);
+      
+      detectOverlaps(allEvents);
+    }
+
+    function detectOverlaps(events) {
+      events.forEach((e, idx) => {
+        for (let j = idx + 1; j < events.length; j++) {
+          const e2 = events[j];
+          if (e.start < e2.end && e.end > e2.start) {
+            // Display a warning message to the user
+            nextBookingElement.innerHTML = `
+              <strong>Conflict detected between ${e.title} and ${e2.title}</strong><br>
+              Please resolve the conflict before booking.
+            `;
+            break;
+          }
+        } else {
+          if (!e.extendedProps.overlap) {
+            if (e.source === 'Airbnb') {
+              nextBookingElement.innerHTML = `
+                <div>
+                  <h3>${e.title}</h3><br>
+                  ${e.description}<br>
+                  From: ${e.start.toLocaleString()}<br>
+                  To: ${e.end.toLocaleString()}
+                </div>
+              `;
+            } else if (e.source === 'Booking.com') {
+              nextBookingElement.innerHTML = `
+                <strong>${e.title}</strong><br>
+                From: ${e.start.toLocaleString()}<br>
+                To: ${e.end.toLocaleString()}
+              `;
+            } else if (e.source === 'VRBO') {
+              nextBookingElement.innerHTML = `
+                <strong>${e.title}</strong><br>
+                From: ${e.start.toLocaleString()}<br>
+                To: ${e.end.toLocaleString()}
+              `;
+            }
+          } else {
+            sidebarEl.querySelector('.error-message').innerText = `Conflict detected between ${e.title} and its blocking bookings. Please resolve the conflict before booking.`;
+          }
+        }
+      });
+    }
+
+    function parseICS(icsText, color, source) {
+      // Add your ical parsing logic here
+      console.log(`Parsing ics data for ${source}`);
+    }
+  </script>
+</body>
+</html>
