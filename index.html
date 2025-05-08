@@ -32,80 +32,94 @@
       background-color: #007aff;
       color: white;
       border: none;
-      border-radius: 4px;
       cursor: pointer;
     }
-    .event-warning {
-      background-color: #ffcc00 !important;
-      color: black;
+    .refresh-button:hover {
+      background-color: #0058b3;
+    }
+    .error-message {
+      color: red;
     }
   </style>
 </head>
+
 <body>
   <div id="calendar"></div>
   <div id="sidebar">
-    <button class="refresh-button" onclick="loadAllEvents()">Refresh</button>
-    <h2 id="today"></h2>
-    <h3>Next Booking:</h3>
-    <div id="next-booking">Loading...</div>
+    <button class="refresh-button" onclick="loadAllEvents()">Refresh Calendar</button>
+    <div id="next-booking"></div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ical.js@1.4.0/build/ical.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/dist/fullcalendar.min.js"></script>
+  <script src="ical-data.js"></script> <!-- Your ics data script here -->
+  
   <script>
-    const corsProxy = "https://coosewarthacalendarcors.apctw.workers.dev?url=";
-    const icalUrls = [
-      { url: corsProxy + encodeURIComponent("http://p24-calendars.icloud.com/published/2/ldqVU9LD0lRS4hLBnoo9qwlr76UkohNBxe5FJ-OGT7QAXlO6umx0JrAOoUyKYztPpEtoYlT0FYSLbZuGjMG3Jb7OSPw8mf49EH_s-xhOqew"), color: 'green', source: 'Offline' },
-      { url: corsProxy + encodeURIComponent("https://ical.booking.com/v1/export?t=fbb4f61b-f5ed-41fb-8440-6e4f26fb640a"), color: 'blue', source: 'Booking.com' },
-      { url: corsProxy + encodeURIComponent("https://www.airbnb.co.uk/calendar/ical/19256915.ics?s=b538b39d60388622bfdf6431f594f647"), color: 'red', source: 'Airbnb' },
-      { url: corsProxy + encodeURIComponent("http://www.vrbo.com/icalendar/15c40fc8965e4840ab839faea2870c29.ics"), color: 'orange', source: 'VRBO' }
+    let icalUrls = [
+      // Airbnb booking
+      {
+        url: 'airbnb-booking.ics',
+        color: 'blue'
+      },
+      
+      // Booking.com booking
+      {
+        url: 'booking-com-booking.ics',
+        color: 'green'
+      },
+      
+      // VRBO booking
+      {
+        url: 'vrbo-booking.ics',
+        color: 'yellow'
+      },
+      
+      // Offline booking
+      {
+        url: 'offline-booking.ics',
+        color: 'red'
+      }
     ];
 
-    const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
-      initialView: 'dayGridMonth',
-      events: [],
-      eventDidMount: function(info) {
-        if (info.event.extendedProps.overlap) {
-          info.el.classList.add("event-warning");
-        }
-      }
-    });
-    calendar.render();
+    let calendarEl = document.getElementById('calendar');
+    let sidebarEl = document.getElementById('sidebar');
+    let nextBookingElement = document.getElementById('next-booking');
 
-    function parseICS(icsText, source, color) {
-      const jcalData = ICAL.parse(icsText);
-      const comp = new ICAL.Component(jcalData);
-      const vevents = comp.getAllSubcomponents("vevent");
-      return vevents.map((vevent) => {
-        const event = new ICAL.Event(vevent);
-        return {
-          title: `${event.summary} (${source})`,
-          start: event.startDate.toJSDate(),
-          end: event.endDate.toJSDate(),
-          color,
-          extendedProps: { source }
-        };
-      });
-    }
-
-    async function loadAllEvents() {
+    function loadAllEvents() {
       const allEvents = [];
-      document.getElementById("next-booking").innerText = "Loading...";
-      for (const { url, color, source } of icalUrls) {
+      const now = new Date();
+      
+      icalUrls.forEach((event) => {
         try {
-          const response = await fetch(url);
+          const response = fetch(event.url);
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const text = await response.text();
-          const events = parseICS(text, source, color);
+          const blobUrl = URL.createObjectURL(response.blob());
+          const text = response.text();
+          const events = parseICS(text, event.color, 'color');
+          
+          // Add a priority score to each event
+          events.forEach((event) => {
+            if (event.source === 'Offline') {
+              event.priority = 3; // Offline bookings take priority
+            } else if (event.source === 'Booking.com') {
+              event.priority = 2; // Booking.com bookings are second priority
+            } else if (event.source === 'VRBO') {
+              event.priority = 1; // VRBO bookings are third priority
+            } else if (event.source === 'Airbnb') {
+              event.priority = 0; // Airbnb bookings are last priority
+            }
+          });
+          
           allEvents.push(...events);
         } catch (err) {
-          console.error(`Failed to load ${source}:`, err);
+          console.error(`Failed to load ${event.source}:`, err);
+          sidebarEl.querySelector('.error-message').innerText = `Error loading data for ${event.source}.`;
         }
-      }
+      });
+      
+      // Sort events by priority
+      allEvents.sort((a, b) => b.priority - a.priority);
+      
       detectOverlaps(allEvents);
-      updateNextBooking(allEvents);
-      calendar.removeAllEvents();
-      calendar.addEventSource(allEvents);
     }
 
     function detectOverlaps(events) {
@@ -113,31 +127,48 @@
         for (let j = idx + 1; j < events.length; j++) {
           const e2 = events[j];
           if (e.start < e2.end && e.end > e2.start) {
-            e.extendedProps.overlap = true;
-            e2.extendedProps.overlap = true;
+            // Display a warning message to the user
+            nextBookingElement.innerHTML = `
+              <strong>Conflict detected between ${e.title} and ${e2.title}</strong><br>
+              Please resolve the conflict before booking.
+            `;
+            break;
+          }
+        } else {
+          if (!e.extendedProps.overlap) {
+            if (e.source === 'Airbnb') {
+              nextBookingElement.innerHTML = `
+                <div>
+                  <h3>${e.title}</h3><br>
+                  ${e.description}<br>
+                  From: ${e.start.toLocaleString()}<br>
+                  To: ${e.end.toLocaleString()}
+                </div>
+              `;
+            } else if (e.source === 'Booking.com') {
+              nextBookingElement.innerHTML = `
+                <strong>${e.title}</strong><br>
+                From: ${e.start.toLocaleString()}<br>
+                To: ${e.end.toLocaleString()}
+              `;
+            } else if (e.source === 'VRBO') {
+              nextBookingElement.innerHTML = `
+                <strong>${e.title}</strong><br>
+                From: ${e.start.toLocaleString()}<br>
+                To: ${e.end.toLocaleString()}
+              `;
+            }
+          } else {
+            sidebarEl.querySelector('.error-message').innerText = `Conflict detected between ${e.title} and its blocking bookings. Please resolve the conflict before booking.`;
           }
         }
       });
     }
 
-    function updateNextBooking(events) {
-      const now = new Date();
-      const futureEvents = events.filter(e => e.start > now);
-      const next = futureEvents.sort((a, b) => a.start - b.start)[0];
-      if (!next) {
-        document.getElementById("next-booking").innerText = "None upcoming.";
-        return;
-      }
-      document.getElementById("next-booking").innerHTML = `
-        <strong>${next.title}</strong><br>
-        From: ${next.start.toLocaleString()}<br>
-        To: ${next.end.toLocaleString()}
-      `;
+    function parseICS(icsText, color, source) {
+      // Add your ical parsing logic here
+      console.log(`Parsing ics data for ${source}`);
     }
-
-    document.getElementById("today").innerText = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    loadAllEvents();
-    setInterval(loadAllEvents, 10 * 60 * 1000); // Every 10 minutes
   </script>
 </body>
 </html>
