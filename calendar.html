@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#007aff"/>
+  <title>Accommodation Booking Calendar</title>
+  <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #calendar {
+      flex: 3;
+      padding: 1rem;
+    }
+    #sidebar {
+      flex: 1;
+      background-color: #f9f9f9;
+      border-left: 1px solid #ccc;
+      padding: 1rem;
+      box-sizing: border-box;
+    }
+    .refresh-button {
+      display: inline-block;
+      margin-bottom: 1rem;
+      padding: 0.5rem 1rem;
+      background-color: #007aff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .event-warning {
+      background-color: #ffcc00 !important;
+      color: black;
+    }
+  </style>
+</head>
+<body>
+  <div id="calendar"></div>
+  <div id="sidebar">
+    <button class="refresh-button" onclick="loadAllEvents()">Refresh</button>
+    <h2 id="today"></h2>
+    <h3>Next Booking:</h3>
+    <div id="next-booking">Loading...</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ical.js@1.4.0/build/ical.min.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js')
+          .then(reg => console.log('Service Worker registered', reg))
+          .catch(err => console.error('Service Worker registration failed', err));
+      });
+    }
+
+    const icalUrls = [
+      { url: "http://p24-calendars.icloud.com/published/2/ldqVU9LD0lRS4hLBnoo9qwlr76UkohNBxe5FJ-OGT7QAXlO6umx0JrAOoUyKYztPpEtoYlT0FYSLbZuGjMG3Jb7OSPw8mf49EH_s-xhOqew", color: 'green', source: 'Offline' },
+      { url: "https://ical.booking.com/v1/export?t=fbb4f61b-f5ed-41fb-8440-6e4f26fb640a", color: 'blue', source: 'Booking.com' },
+      { url: "https://www.airbnb.co.uk/calendar/ical/19256915.ics?s=b538b39d60388622bfdf6431f594f647", color: 'red', source: 'Airbnb' },
+      { url: "http://www.vrbo.com/icalendar/15c40fc8965e4840ab839faea2870c29.ics", color: 'orange', source: 'VRBO' }
+    ];
+
+    const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+      initialView: 'dayGridMonth',
+      events: [],
+      eventDidMount: function(info) {
+        if (info.event.extendedProps.overlap) {
+          info.el.classList.add("event-warning");
+        }
+      }
+    });
+    calendar.render();
+
+    function parseICS(icsText, source, color) {
+      const jcalData = ICAL.parse(icsText);
+      const comp = new ICAL.Component(jcalData);
+      const vevents = comp.getAllSubcomponents("vevent");
+      return vevents.map((vevent) => {
+        const event = new ICAL.Event(vevent);
+        return {
+          title: `${event.summary} (${source})`,
+          start: event.startDate.toJSDate(),
+          end: event.endDate.toJSDate(),
+          color,
+          extendedProps: { source }
+        };
+      });
+    }
+
+    async function loadAllEvents() {
+      const allEvents = [];
+      document.getElementById("next-booking").innerText = "Loading...";
+      for (const { url, color, source } of icalUrls) {
+        try {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          const text = await response.text();
+          const events = parseICS(text, source, color);
+          allEvents.push(...events);
+        } catch (err) {
+          console.error(`Failed to load ${source}:`, err);
+        }
+      }
+      detectOverlaps(allEvents);
+      updateNextBooking(allEvents);
+      calendar.removeAllEvents();
+      calendar.addEventSource(allEvents);
+    }
+
+    function detectOverlaps(events) {
+      events.forEach((e, idx) => {
+        for (let j = idx + 1; j < events.length; j++) {
+          const e2 = events[j];
+          if (e.start < e2.end && e.end > e2.start) {
+            e.extendedProps.overlap = true;
+            e2.extendedProps.overlap = true;
+          }
+        }
+      });
+    }
+
+    function updateNextBooking(events) {
+      const now = new Date();
+      const futureEvents = events.filter(e => e.start > now);
+      const next = futureEvents.sort((a, b) => a.start - b.start)[0];
+      if (!next) {
+        document.getElementById("next-booking").innerText = "None upcoming.";
+        return;
+      }
+      document.getElementById("next-booking").innerHTML = `
+        <strong>${next.title}</strong><br>
+        From: ${next.start.toLocaleString()}<br>
+        To: ${next.end.toLocaleString()}
+      `;
+    }
+
+    document.getElementById("today").innerText = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    loadAllEvents();
+    setInterval(loadAllEvents, 10 * 60 * 1000);
+  </script>
+</body>
+</html>
