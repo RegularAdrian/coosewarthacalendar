@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#007aff"/>
   <title>Accommodation Booking Calendar</title>
   <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
   <style>
@@ -54,19 +53,12 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/ical.js@1.4.0/build/ical.min.js"></script>
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('service-worker.js')
-          .then(reg => console.log('Service Worker registered', reg))
-          .catch(err => console.error('Service Worker registration failed', err));
-      });
-    }
-
+    const corsProxy = "https://corsproxy.io/?";
     const icalUrls = [
-      { url: "http://p24-calendars.icloud.com/published/2/ldqVU9LD0lRS4hLBnoo9qwlr76UkohNBxe5FJ-OGT7QAXlO6umx0JrAOoUyKYztPpEtoYlT0FYSLbZuGjMG3Jb7OSPw8mf49EH_s-xhOqew", color: 'green', source: 'Offline' },
-      { url: "https://ical.booking.com/v1/export?t=fbb4f61b-f5ed-41fb-8440-6e4f26fb640a", color: 'blue', source: 'Booking.com' },
-      { url: "https://www.airbnb.co.uk/calendar/ical/19256915.ics?s=b538b39d60388622bfdf6431f594f647", color: 'red', source: 'Airbnb' },
-      { url: "http://www.vrbo.com/icalendar/15c40fc8965e4840ab839faea2870c29.ics", color: 'orange', source: 'VRBO' }
+      { url: corsProxy + encodeURIComponent("http://p24-calendars.icloud.com/published/2/ldqVU9LD0lRS4hLBnoo9qwlr76UkohNBxe5FJ-OGT7QAXlO6umx0JrAOoUyKYztPpEtoYlT0FYSLbZuGjMG3Jb7OSPw8mf49EH_s-xhOqew"), color: 'green', source: 'Offline' },
+      { url: corsProxy + encodeURIComponent("https://ical.booking.com/v1/export?t=fbb4f61b-f5ed-41fb-8440-6e4f26fb640a"), color: 'blue', source: 'Booking.com' },
+      { url: corsProxy + encodeURIComponent("https://www.airbnb.co.uk/calendar/ical/19256915.ics?s=b538b39d60388622bfdf6431f594f647"), color: 'red', source: 'Airbnb' },
+      { url: corsProxy + encodeURIComponent("http://www.vrbo.com/icalendar/15c40fc8965e4840ab839faea2870c29.ics"), color: 'orange', source: 'VRBO' }
     ];
 
     const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
@@ -102,7 +94,7 @@
       for (const { url, color, source } of icalUrls) {
         try {
           const response = await fetch(url);
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const text = await response.text();
           const events = parseICS(text, source, color);
           allEvents.push(...events);
@@ -145,7 +137,7 @@
 
     document.getElementById("today").innerText = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     loadAllEvents();
-    setInterval(loadAllEvents, 10 * 60 * 1000);
+    setInterval(loadAllEvents, 10 * 60 * 1000); // Every 10 minutes
   </script>
 </body>
 </html>
