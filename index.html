@@ -19,13 +19,21 @@
       flex: 3;
       padding: 1rem;
     }
-    #sidebar {
-      flex: 1;
-      background-color: #f9f9f9;
-      border-left: 1px solid #ccc;
-      padding: 1rem;
-      box-sizing: border-box;
-    }
+#sidebar {
+  flex: 1;
+  background-color: #f9f9f9;
+  border-left: 1px solid #ccc;
+  padding: 1rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+#today {
+  margin-bottom: 2rem;
+}
+.sidebar-spacer {
+  flex-grow: 1;
+}
     .refresh-button {
       display: inline-block;
       margin-bottom: 1rem;
@@ -45,10 +53,11 @@
 <body>
   <div id="calendar"></div>
   <div id="sidebar">
-    <button class="refresh-button" onclick="loadAllEvents()">Refresh</button>
-    <h2 id="today"></h2>
-    <h3>Next Booking:</h3>
-    <div id="next-booking">Loading...</div>
+    <button class="refresh-button" onclick="loadAllEvents()">Manual Refresh</button>
+<h2 id="today"></h2>
+<div class="sidebar-spacer"></div>
+<h3>Next Booking:</h3>
+<div id="next-booking">Loading...</div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
