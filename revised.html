@@ -1,39 +1,164 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#ffffff" />
-    <link rel="manifest" href="manifest.json" />
-    <link rel="stylesheet" href="style.css" />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;500;700&display=swap"
-      rel="stylesheet"
-    />
-    <title>Calendar</title>
-  </head>
-  <body>
-    <div class="header">
-      <button class="nav-btn" onclick="prevMonth()">◀</button>
-      <div class="month-title" id="monthTitle">May 2025</div>
-      <button class="nav-btn" onclick="nextMonth()">▶</button>
-    </div>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;500;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="manifest.json">
+  <title>Accommodation Booking Calendar</title>
+  <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #calendar {
+      flex: 3;
+      padding: 1rem;
+    }
+    #sidebar {
+      flex: 1;
+      background-color: #f9f9f9;
+      border-left: 1px solid #ccc;
+      padding: 1rem;
+      box-sizing: border-box;
+    }
+    .refresh-button {
+      display: inline-block;
+      margin-bottom: 1rem;
+      padding: 0.5rem 1rem;
+      background-color: #007aff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .event-warning {
+      background-color: #ffcc00 !important;
+      color: black;
+    }
+  </style>
+</head>
+<body>
+  <div id="calendar"></div>
+  <div id="sidebar">
+    <button class="refresh-button" onclick="loadAllEvents()">Refresh</button>
+    <h2 id="today"></h2>
+    <h3>Next Booking:</h3>
+    <div id="next-booking">Loading...</div>
+  </div>
 
-    <div class="calendar-container">
-      <div id="calendar"></div>
-      <div class="next-booking">
-        <div class="date-display">
-          <div class="day-name" id="todayDay">Friday</div>
-          <div class="day-number" id="todayDate">9th May 2025</div>
-        </div>
-        <h2>Next Booking</h2>
-        <div id="nextBookingName">Amy Lushington (Offline)</div>
-        <div>From <span id="nextBookingFrom">24/05/2025</span></div>
-        <div>To <span id="nextBookingTo">31/05/2025</span></div>
-        <button class="refresh-button" onclick="manualRefresh()">Press here for Manual Refresh</button>
-      </div>
-    </div>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ical.js@1.4.0/build/ical.min.js"></script>
+  <script>
+    const icalUrls = [
+      { url: "https://coosewarthacalendarcors.apctw.workers.dev?url=http://p24-calendars.icloud.com/published/2/ldqVU9LD0lRS4hLBnoo9qwlr76UkohNBxe5FJ-OGT7QAXlO6umx0JrAOoUyKYztPpEtoYlT0FYSLbZuGjMG3Jb7OSPw8mf49EH_s-xhOqew", color: 'green', source: 'Offline' },
+      { url: "https://coosewarthacalendarcors.apctw.workers.dev?url=https://ical.booking.com/v1/export?t=fbb4f61b-f5ed-41fb-8440-6e4f26fb640a", color: 'blue', source: 'Booking.com' },
+      { url: "https://coosewarthacalendarcors.apctw.workers.dev?url=http://www.vrbo.com/icalendar/15c40fc8965e4840ab839faea2870c29.ics", color: 'orange', source: 'VRBO' },
+      { url: "https://coosewarthacalendarcors.apctw.workers.dev?url=https://www.airbnb.co.uk/calendar/ical/19256915.ics?s=b538b39d60388622bfdf6431f594f647", color: 'red', source: 'Airbnb', isAirbnb: true }
+    ];
 
-    <script src="main.js"></script>
-  </body>
+    const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+      initialView: 'dayGridMonth',
+      events: [],
+      eventDidMount: function(info) {
+        if (info.event.extendedProps.overlap) {
+          info.el.classList.add("event-warning");
+        }
+      }
+    });
+    calendar.render();
+
+    function parseICS(icsText, source, color, isAirbnb = false) {
+      const jcalData = ICAL.parse(icsText);
+      const comp = new ICAL.Component(jcalData);
+      const vevents = comp.getAllSubcomponents("vevent");
+      return vevents.map((vevent) => {
+        const event = new ICAL.Event(vevent);
+        const start = event.startDate.toJSDate();
+        const end = event.endDate.toJSDate();
+        let title = `${event.summary} (${source})`;
+        if (isAirbnb && event.description) {
+          title = `${event.description.trim()} (${source})`;
+        }
+        return {
+          title,
+          start,
+          end,
+          color,
+          extendedProps: { source }
+        };
+      });
+    }
+
+    function eventsOverlap(e1, e2) {
+      return e1.start < e2.end && e1.end > e2.start;
+    }
+
+    async function loadAllEvents() {
+      const allEvents = [];
+      document.getElementById("next-booking").innerText = "Loading...";
+
+      for (const { url, color, source, isAirbnb } of icalUrls) {
+        try {
+          const response = await fetch(url);
+          const text = await response.text();
+          let events = parseICS(text, source, color, isAirbnb);
+
+          if (isAirbnb) {
+            // Only include Airbnb events that don't overlap with existing events
+            events = events.filter((airbnbEvent) => {
+              return !allEvents.some(existingEvent => {
+                return eventsOverlap(existingEvent, airbnbEvent);
+              });
+            });
+          }
+
+          allEvents.push(...events);
+        } catch (err) {
+          console.error(`Failed to load ${source}:`, err);
+        }
+      }
+
+      detectOverlaps(allEvents);
+      updateNextBooking(allEvents);
+      calendar.removeAllEvents();
+      calendar.addEventSource(allEvents);
+    }
+
+    function detectOverlaps(events) {
+      events.forEach((e, idx) => {
+        for (let j = idx + 1; j < events.length; j++) {
+          const e2 = events[j];
+          if (eventsOverlap(e, e2)) {
+            e.extendedProps.overlap = true;
+            e2.extendedProps.overlap = true;
+          }
+        }
+      });
+    }
+
+    function updateNextBooking(events) {
+      const now = new Date();
+      const futureEvents = events.filter(e => e.start > now);
+      const next = futureEvents.sort((a, b) => a.start - b.start)[0];
+      if (!next) {
+        document.getElementById("next-booking").innerText = "None upcoming.";
+        return;
+      }
+      document.getElementById("next-booking").innerHTML = `
+        <strong>${next.title}</strong><br>
+        From: ${next.start.toLocaleString()}<br>
+        To: ${next.end.toLocaleString()}
+      `;
+    }
+
+    document.getElementById("today").innerText = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    loadAllEvents();
+    setInterval(loadAllEvents, 10 * 60 * 1000); // Every 10 minutes
+  </script>
+</body>
 </html>
