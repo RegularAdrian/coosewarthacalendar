@@ -72,36 +72,57 @@
     });
     calendar.render();
 
-    function parseICS(icsText, source, color) {
+    function parseICS(icsText, source, color, isAirbnb = false) {
       const jcalData = ICAL.parse(icsText);
       const comp = new ICAL.Component(jcalData);
       const vevents = comp.getAllSubcomponents("vevent");
       return vevents.map((vevent) => {
         const event = new ICAL.Event(vevent);
+        const start = event.startDate.toJSDate();
+        const end = event.endDate.toJSDate();
+        let title = `${event.summary} (${source})`;
+        if (isAirbnb && event.description) {
+          title = `${event.description.trim()} (${source})`;
+        }
         return {
-          title: `${event.summary} (${source})`,
-          start: event.startDate.toJSDate(),
-          end: event.endDate.toJSDate(),
+          title,
+          start,
+          end,
           color,
           extendedProps: { source }
         };
       });
     }
 
+    function eventsOverlap(e1, e2) {
+      return e1.start < e2.end && e1.end > e2.start;
+    }
+
     async function loadAllEvents() {
       const allEvents = [];
       document.getElementById("next-booking").innerText = "Loading...";
-      for (const { url, color, source } of icalUrls) {
+
+      for (const { url, color, source, isAirbnb } of icalUrls) {
         try {
           const response = await fetch(url);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const text = await response.text();
-          const events = parseICS(text, source, color);
+          let events = parseICS(text, source, color, isAirbnb);
+
+          if (isAirbnb) {
+            // Only include Airbnb events that don't overlap with existing events
+            events = events.filter((airbnbEvent) => {
+              return !allEvents.some(existingEvent => {
+                return eventsOverlap(existingEvent, airbnbEvent);
+              });
+            });
+          }
+
           allEvents.push(...events);
         } catch (err) {
           console.error(`Failed to load ${source}:`, err);
         }
       }
+
       detectOverlaps(allEvents);
       updateNextBooking(allEvents);
       calendar.removeAllEvents();
@@ -112,7 +133,7 @@
       events.forEach((e, idx) => {
         for (let j = idx + 1; j < events.length; j++) {
           const e2 = events[j];
-          if (e.start < e2.end && e.end > e2.start) {
+          if (eventsOverlap(e, e2)) {
             e.extendedProps.overlap = true;
             e2.extendedProps.overlap = true;
           }
