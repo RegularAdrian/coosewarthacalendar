@@ -14,12 +14,13 @@
   <div id="app">
     <div id="calendar"></div>
     <div id="sidebar">
-      <button class="refresh-button" onclick="loadAllEvents()">Refresh</button>
-      <h2 id="today"></h2>
-      <h3>Next Booking:</h3>
-      <div id="next-booking">Loading...</div>
+      <div id="current-date"></div>
+      <h2>Next Booking</h2>
+      <div id="next-booking"></div>
+      <button id="refresh">Refresh</button>
     </div>
   </div>
+  <script src="script.js"></script>
   <script>
     const icalUrls = [
       { url: "https://coosewarthacalendarcors.apctw.workers.dev?url=https://p24-calendars.icloud.com/published/2/ldqVU9LD0lRS4hLBnoo9qwlr76UkohNBxe5FJ-OGT7QAXlO6umx0JrAOoUyKYztPpEtoYlT0FYSLbZuGjMG3Jb7OSPw8mf49EH_s-xhOqew", color: 'green', source: 'Offline' },
