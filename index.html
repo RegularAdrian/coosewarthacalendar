@@ -61,15 +61,16 @@
       { url: "https://coosewarthacalendarcors.apctw.workers.dev?url=https://www.airbnb.co.uk/calendar/ical/19256915.ics?s=b538b39d60388622bfdf6431f594f647", color: 'red', source: 'Airbnb', isAirbnb: true }
     ];
 
-    const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
-      initialView: 'dayGridMonth',
-      events: [],
-      eventDidMount: function(info) {
-        if (info.event.extendedProps.overlap) {
-          info.el.classList.add("event-warning");
-        }
-      }
-    });
+const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+  initialView: 'dayGridMonth',
+  events: [],
+  eventTimeFormat: false, // 👈 This disables the time label
+  eventDidMount: function(info) {
+    if (info.event.extendedProps.overlap) {
+      info.el.classList.add("event-warning");
+    }
+  }
+});
     calendar.render();
 
     function parseICS(icsText, source, color, isAirbnb = false) {
