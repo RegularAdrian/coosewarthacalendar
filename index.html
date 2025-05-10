@@ -166,7 +166,14 @@ const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), 
       `;
     }
 
-    document.getElementById("today").innerText = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const now = new Date();
+const weekday = now.toLocaleDateString(undefined, { weekday: 'long' });
+const date = now.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+
+document.getElementById("today").innerHTML = `
+  <div style="font-weight: 300; font-size: 1.2em;">${weekday}</div>
+  <div style="font-weight: 600; font-size: 1.4em;">${date}</div>
+`;
     loadAllEvents();
     setInterval(loadAllEvents, 30 * 60 * 1000); // Every 30 minutes
   </script>
