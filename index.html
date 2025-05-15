@@ -34,6 +34,11 @@ body {
 .sidebar-spacer {
   flex-grow: 1;
 }
+.sidebar-checkin {
+  background-color: #8B0000; /* Dark red */
+  color: white;
+  transition: background-color 0.3s ease;
+}
     .refresh-button {
       display: inline-block;
       margin-bottom: 1rem;
@@ -152,8 +157,20 @@ const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), 
 
 function updateNextBooking(events) {
   const now = new Date();
+  const todayDate = now.toDateString();
+
   const futureEvents = events.filter(e => e.start > now);
   const next = futureEvents.sort((a, b) => a.start - b.start)[0];
+
+  // Check if today is a check-in date
+  const hasCheckInToday = events.some(e => e.start.toDateString() === todayDate);
+  const sidebar = document.getElementById("sidebar");
+
+  if (hasCheckInToday) {
+    sidebar.classList.add("sidebar-checkin");
+  } else {
+    sidebar.classList.remove("sidebar-checkin");
+  }
 
   if (!next) {
     document.getElementById("next-booking").innerText = "None upcoming.";
