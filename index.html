@@ -8,78 +8,62 @@
   <title>Coosewartha Booking Calendar</title>
   <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
   <style>
-body {
-  margin: 0;
-  font-family: 'Cabin', sans-serif;
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-  animation: bgPulse 60s infinite alternate;
-}
-
-@keyframes bgPulse {
-  0% { background-color: #ffffff; }
-  100% { background-color: #f5f5f5; }
-}
-
-#calendar {
-  flex: 3;
-  padding: 1rem;
-  animation: subtleShift 120s infinite alternate;
-}
-
-#sidebar {
-  flex: 1;
-  background-color: #f9f9f9;
-  border-left: 1px solid #ccc;
-  padding: 1rem;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  animation: subtleShift 120s infinite alternate;
-  transition: background-color 0.5s ease, color 0.5s ease;
-}
-
-@keyframes subtleShift {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(2px); }
-}
-
-#today {
-  margin-bottom: 2rem;
-  transition: filter 2s ease;
-  animation: flicker 90s infinite alternate;
-}
-
-@keyframes flicker {
-  0% { filter: brightness(1); }
-  100% { filter: brightness(0.95); }
-}
-
-.sidebar-spacer {
-  flex-grow: 1;
-}
-
-.sidebar-checkin {
-  background-color: #8B0000 !important; /* Dark red */
-  color: white !important;
-}
-
-.refresh-button {
-  display: inline-block;
-  margin-bottom: 1rem;
-  padding: 0.5rem 1rem;
-  background-color: #007aff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.event-warning {
-  background-color: #ffcc00 !important;
-  color: black;
-}
+    body {
+      margin: 0;
+      font-family: 'Cabin', sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      animation: subtleShift 60s infinite alternate ease-in-out;
+    }
+    #calendar {
+      flex: 3;
+      padding: 1rem;
+      animation: bgPulse 60s infinite alternate ease-in-out;
+    }
+    #sidebar {
+      flex: 1;
+      background-color: #f9f9f9;
+      border-left: 1px solid #ccc;
+      padding: 1rem;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      animation: bgPulse 60s infinite alternate ease-in-out;
+    }
+    #today {
+      margin-bottom: 2rem;
+    }
+    .sidebar-spacer {
+      flex-grow: 1;
+    }
+    .sidebar-checkin {
+      background-color: #8B0000 !important;
+      color: white;
+    }
+    .refresh-button {
+      display: inline-block;
+      margin-bottom: 1rem;
+      padding: 0.5rem 1rem;
+      background-color: #007aff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .event-warning {
+      background-color: #ffcc00 !important;
+      color: black;
+    }
+    @keyframes subtleShift {
+      0% { transform: translateY(0px); }
+      100% { transform: translateY(-0.3px); }
+    }
+    @keyframes bgPulse {
+      0% { filter: brightness(1); }
+      100% { filter: brightness(1.01); }
+    }
   </style>
 </head>
 <body>
@@ -88,6 +72,7 @@ body {
     <button class="refresh-button" onclick="loadAllEvents()">Manual Refresh</button>
     <h2 id="today"></h2>
     <div class="sidebar-spacer"></div>
+    <div id="todays-booking"></div>
     <div id="next-booking">Loading...</div>
   </div>
 
@@ -130,7 +115,7 @@ body {
           start,
           end,
           color,
-          extendedProps: { source, isAirbnb }
+          extendedProps: { source }
         };
       });
     }
@@ -142,6 +127,7 @@ body {
     async function loadAllEvents() {
       const allEvents = [];
       document.getElementById("next-booking").innerText = "Loading...";
+      document.getElementById("todays-booking").innerText = "";
 
       for (const { url, color, source, isAirbnb } of icalUrls) {
         try {
@@ -186,49 +172,48 @@ body {
 
     function updateNextBooking(events) {
       const now = new Date();
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const todayDate = now.toDateString();
 
-      const hasCheckInToday = events.some(e => {
-        const eventStart = new Date(e.start);
-        eventStart.setHours(0, 0, 0, 0);
-        return eventStart.getTime() === today.getTime();
-      });
+      const todaysBooking = events.find(e => e.start.toDateString() === todayDate);
+      const futureEvents = events.filter(e => e.start > now);
+      const next = futureEvents.sort((a, b) => a.start - b.start)[0];
 
       const sidebar = document.getElementById("sidebar");
-      if (hasCheckInToday) {
+      if (todaysBooking) {
         sidebar.classList.add("sidebar-checkin");
       } else {
         sidebar.classList.remove("sidebar-checkin");
       }
 
-      const futureEvents = events.filter(e => e.start > now);
-      const next = futureEvents.sort((a, b) => a.start - b.start)[0];
+      const formatDate = (date) => date.toLocaleDateString(undefined, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+
+      if (todaysBooking) {
+        document.getElementById("todays-booking").innerHTML = `
+          <div style="font-weight: 300; font-size: 1.4em; margin-bottom: 0.5em;">Today's Booking</div>
+          <div style="font-weight: 700; font-size: 1.3em; margin-bottom: 0.5em;">${todaysBooking.title}</div>
+          <div style="font-size: 1.1em; line-height: 1.4;">
+            <div><strong>From:</strong> ${formatDate(todaysBooking.start)}</div>
+            <div><strong>To:</strong> ${formatDate(todaysBooking.end)}</div>
+          </div>
+        `;
+      }
 
       if (!next) {
         document.getElementById("next-booking").innerText = "None upcoming.";
         return;
       }
 
-      const startDate = next.start.toLocaleDateString(undefined, {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
-      const endDate = next.end.toLocaleDateString(undefined, {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
-
       document.getElementById("next-booking").innerHTML = `
-        <div style="font-weight: 300; font-size: 1.4em; margin-bottom: 0.5em;">Next Booking</div>
+        <div style="font-weight: 300; font-size: 1.4em; margin-top: 1.5em; margin-bottom: 0.5em;">Next Booking</div>
         <div style="font-weight: 700; font-size: 1.3em; margin-bottom: 0.5em;">${next.title}</div>
         <div style="font-size: 1.1em; line-height: 1.4;">
-          <div><strong>From:</strong> ${startDate}</div>
-          <div><strong>To:</strong> ${endDate}</div>
+          <div><strong>From:</strong> ${formatDate(next.start)}</div>
+          <div><strong>To:</strong> ${formatDate(next.end)}</div>
         </div>
       `;
     }
@@ -243,7 +228,7 @@ body {
     `;
 
     loadAllEvents();
-    setInterval(loadAllEvents, 30 * 60 * 1000); // Every 30 minutes
+    setInterval(loadAllEvents, 30 * 60 * 1000);
   </script>
 </body>
 </html>
