@@ -14,11 +14,20 @@ body {
   display: flex;
   height: 100vh;
   overflow: hidden;
+  animation: bgPulse 60s infinite alternate;
 }
-    #calendar {
-      flex: 3;
-      padding: 1rem;
-    }
+
+@keyframes bgPulse {
+  0% { background-color: #ffffff; }
+  100% { background-color: #f5f5f5; }
+}
+
+#calendar {
+  flex: 3;
+  padding: 1rem;
+  animation: subtleShift 120s infinite alternate;
+}
+
 #sidebar {
   flex: 1;
   background-color: #f9f9f9;
@@ -27,41 +36,59 @@ body {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  animation: subtleShift 120s infinite alternate;
+  transition: background-color 0.5s ease, color 0.5s ease;
 }
+
+@keyframes subtleShift {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(2px); }
+}
+
 #today {
   margin-bottom: 2rem;
+  transition: filter 2s ease;
+  animation: flicker 90s infinite alternate;
 }
+
+@keyframes flicker {
+  0% { filter: brightness(1); }
+  100% { filter: brightness(0.95); }
+}
+
 .sidebar-spacer {
   flex-grow: 1;
 }
+
 .sidebar-checkin {
-  background-color: #8B0000; /* Dark red */
-  color: white;
-  transition: background-color 0.3s ease;
+  background-color: #8B0000 !important; /* Dark red */
+  color: white !important;
 }
-    .refresh-button {
-      display: inline-block;
-      margin-bottom: 1rem;
-      padding: 0.5rem 1rem;
-      background-color: #007aff;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    .event-warning {
-      background-color: #ffcc00 !important;
-      color: black;
-    }
+
+.refresh-button {
+  display: inline-block;
+  margin-bottom: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: #007aff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.event-warning {
+  background-color: #ffcc00 !important;
+  color: black;
+}
   </style>
 </head>
 <body>
   <div id="calendar"></div>
   <div id="sidebar">
     <button class="refresh-button" onclick="loadAllEvents()">Manual Refresh</button>
-<h2 id="today"></h2>
-<div class="sidebar-spacer"></div>
-<div id="next-booking">Loading...</div>
+    <h2 id="today"></h2>
+    <div class="sidebar-spacer"></div>
+    <div id="next-booking">Loading...</div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
@@ -74,16 +101,16 @@ body {
       { url: "https://coosewarthacalendarcors.apctw.workers.dev?url=https://www.airbnb.co.uk/calendar/ical/19256915.ics?s=b538b39d60388622bfdf6431f594f647", color: 'red', source: 'Airbnb', isAirbnb: true }
     ];
 
-const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
-  initialView: 'dayGridMonth',
-  events: [],
-  displayEventTime: false, // 👈 This disables the time label
-  eventDidMount: function(info) {
-    if (info.event.extendedProps.overlap) {
-      info.el.classList.add("event-warning");
-    }
-  }
-});
+    const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+      initialView: 'dayGridMonth',
+      events: [],
+      displayEventTime: false,
+      eventDidMount: function(info) {
+        if (info.event.extendedProps.overlap) {
+          info.el.classList.add("event-warning");
+        }
+      }
+    });
     calendar.render();
 
     function parseICS(icsText, source, color, isAirbnb = false) {
@@ -103,7 +130,7 @@ const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), 
           start,
           end,
           color,
-          extendedProps: { source }
+          extendedProps: { source, isAirbnb }
         };
       });
     }
@@ -123,12 +150,12 @@ const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), 
           let events = parseICS(text, source, color, isAirbnb);
 
           if (isAirbnb) {
-            // Only exclude Airbnb events that exactly match another event
             events = events.filter((airbnbEvent) => {
               return !allEvents.some(existingEvent => {
-                const startsSame = existingEvent.start.getTime() === airbnbEvent.start.getTime();
-                const endsSame = existingEvent.end.getTime() === airbnbEvent.end.getTime();
-                return startsSame && endsSame;
+                return (
+                  existingEvent.start.getTime() === airbnbEvent.start.getTime() &&
+                  existingEvent.end.getTime() === airbnbEvent.end.getTime()
+                );
               });
             });
           }
@@ -157,59 +184,64 @@ const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), 
       });
     }
 
-function updateNextBooking(events) {
-  const now = new Date();
-  const todayDate = now.toDateString();
+    function updateNextBooking(events) {
+      const now = new Date();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-  const futureEvents = events.filter(e => e.start > now);
-  const next = futureEvents.sort((a, b) => a.start - b.start)[0];
+      const hasCheckInToday = events.some(e => {
+        const eventStart = new Date(e.start);
+        eventStart.setHours(0, 0, 0, 0);
+        return eventStart.getTime() === today.getTime();
+      });
 
-  // Check if today is a check-in date
-  const hasCheckInToday = events.some(e => e.start.toDateString() === todayDate);
-  const sidebar = document.getElementById("sidebar");
+      const sidebar = document.getElementById("sidebar");
+      if (hasCheckInToday) {
+        sidebar.classList.add("sidebar-checkin");
+      } else {
+        sidebar.classList.remove("sidebar-checkin");
+      }
 
-  if (hasCheckInToday) {
-    sidebar.classList.add("sidebar-checkin");
-  } else {
-    sidebar.classList.remove("sidebar-checkin");
-  }
+      const futureEvents = events.filter(e => e.start > now);
+      const next = futureEvents.sort((a, b) => a.start - b.start)[0];
 
-  if (!next) {
-    document.getElementById("next-booking").innerText = "None upcoming.";
-    return;
-  }
+      if (!next) {
+        document.getElementById("next-booking").innerText = "None upcoming.";
+        return;
+      }
 
-  const startDate = next.start.toLocaleDateString(undefined, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
-  const endDate = next.end.toLocaleDateString(undefined, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
+      const startDate = next.start.toLocaleDateString(undefined, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+      const endDate = next.end.toLocaleDateString(undefined, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
 
-  document.getElementById("next-booking").innerHTML = `
-    <div style="font-weight: 300; font-size: 1.4em; margin-bottom: 0.5em;">Next Booking</div>
-    <div style="font-weight: 700; font-size: 1.3em; margin-bottom: 0.5em;">${next.title}</div>
-    <div style="font-size: 1.1em; line-height: 1.4;">
-      <div><strong>From:</strong> ${startDate}</div>
-      <div><strong>To:</strong> ${endDate}</div>
-    </div>
-  `;
-}
+      document.getElementById("next-booking").innerHTML = `
+        <div style="font-weight: 300; font-size: 1.4em; margin-bottom: 0.5em;">Next Booking</div>
+        <div style="font-weight: 700; font-size: 1.3em; margin-bottom: 0.5em;">${next.title}</div>
+        <div style="font-size: 1.1em; line-height: 1.4;">
+          <div><strong>From:</strong> ${startDate}</div>
+          <div><strong>To:</strong> ${endDate}</div>
+        </div>
+      `;
+    }
 
     const now = new Date();
-const weekday = now.toLocaleDateString(undefined, { weekday: 'long' });
-const date = now.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+    const weekday = now.toLocaleDateString(undefined, { weekday: 'long' });
+    const date = now.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
 
-document.getElementById("today").innerHTML = `
-  <div style="font-weight: 300; font-size: 1.2em;">${weekday}</div>
-  <div style="font-weight: 600; font-size: 1.4em;">${date}</div>
-`;
+    document.getElementById("today").innerHTML = `
+      <div style="font-weight: 300; font-size: 1.2em;">${weekday}</div>
+      <div style="font-weight: 600; font-size: 1.4em;">${date}</div>
+    `;
+
     loadAllEvents();
     setInterval(loadAllEvents, 30 * 60 * 1000); // Every 30 minutes
   </script>
