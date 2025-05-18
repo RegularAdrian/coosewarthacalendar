@@ -3,42 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link href="https://fonts.googleapis.com/css2?family=Cabin:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cabin:wght@200;400;700&display=swap" rel="stylesheet">
   <link rel="manifest" href="manifest.json">
-  <title>Coosewartha Booking Calendar</title>
+  <title>Coosewartha Accommodation Booking Calendar</title>
   <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
   <style>
-body {
-  margin: 0;
-  font-family: 'Cabin', sans-serif;
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-}
+    body {
+      margin: 0;
+      font-family: 'Cabin', sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      transition: transform 0.5s ease, opacity 1s ease;
+    }
     #calendar {
       flex: 3;
       padding: 1rem;
     }
-#sidebar {
-  flex: 1;
-  background-color: #f9f9f9;
-  border-left: 1px solid #ccc;
-  padding: 1rem;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-}
-#today {
-  margin-bottom: 2rem;
-}
-.sidebar-spacer {
-  flex-grow: 1;
-}
-.sidebar-checkin {
-  background-color: #8B0000; /* Dark red */
-  color: white;
-  transition: background-color 0.3s ease;
-}
+    #sidebar {
+      flex: 1;
+      background-color: #f9f9f9;
+      border-left: 1px solid #ccc;
+      padding: 1rem;
+      box-sizing: border-box;
+      transition: background-color 0.5s ease;
+    }
     .refresh-button {
       display: inline-block;
       margin-bottom: 1rem;
@@ -53,16 +42,46 @@ body {
       background-color: #ffcc00 !important;
       color: black;
     }
+    #today {
+      font-size: 1.5em;
+      margin-bottom: 3em;
+    }
+    #today .day {
+      font-weight: 200;
+    }
+    #next-booking-header {
+      font-size: 1.5em;
+      font-weight: 300;
+      margin-bottom: 0.5em;
+    }
+    #next-booking strong {
+      font-size: 1.2em;
+      font-weight: 700;
+    }
+    #next-booking {
+      font-size: 1.1em;
+    }
+    #sleep-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: black;
+      display: none;
+      z-index: 999;
+    }
   </style>
 </head>
 <body>
   <div id="calendar"></div>
   <div id="sidebar">
-    <button class="refresh-button" onclick="loadAllEvents()">Manual Refresh</button>
-<h2 id="today"></h2>
-<div class="sidebar-spacer"></div>
-<div id="next-booking">Loading...</div>
+    <button class="refresh-button" onclick="loadAllEvents()">Refresh</button>
+    <h2 id="today"></h2>
+    <h3 id="next-booking-header">Next Booking:</h3>
+    <div id="next-booking">Loading...</div>
   </div>
+  <div id="sleep-overlay"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/ical.js@1.4.0/build/ical.min.js"></script>
@@ -74,16 +93,16 @@ body {
       { url: "https://coosewarthacalendarcors.apctw.workers.dev?url=https://www.airbnb.co.uk/calendar/ical/19256915.ics?s=b538b39d60388622bfdf6431f594f647", color: 'red', source: 'Airbnb', isAirbnb: true }
     ];
 
-const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
-  initialView: 'dayGridMonth',
-  events: [],
-  displayEventTime: false, // 👈 This disables the time label
-  eventDidMount: function(info) {
-    if (info.event.extendedProps.overlap) {
-      info.el.classList.add("event-warning");
-    }
-  }
-});
+    const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+      initialView: 'dayGridMonth',
+      events: [],
+      displayEventTime: false,
+      eventDidMount: function(info) {
+        if (info.event.extendedProps.overlap) {
+          info.el.classList.add("event-warning");
+        }
+      }
+    });
     calendar.render();
 
     function parseICS(icsText, source, color, isAirbnb = false) {
@@ -123,11 +142,8 @@ const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), 
           let events = parseICS(text, source, color, isAirbnb);
 
           if (isAirbnb) {
-            // Only include Airbnb events that don't overlap with existing events
             events = events.filter((airbnbEvent) => {
-              return !allEvents.some(existingEvent => {
-                return eventsOverlap(existingEvent, airbnbEvent);
-              });
+              return !allEvents.some(existingEvent => eventsOverlap(existingEvent, airbnbEvent));
             });
           }
 
@@ -155,61 +171,64 @@ const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), 
       });
     }
 
-function updateNextBooking(events) {
-  const now = new Date();
-  const todayDate = now.toDateString();
+    function updateNextBooking(events) {
+      const now = new Date();
+      const futureEvents = events.filter(e => e.start > now);
+      const next = futureEvents.sort((a, b) => a.start - b.start)[0];
+      const sidebar = document.getElementById("sidebar");
+      if (!next) {
+        document.getElementById("next-booking").innerText = "None upcoming.";
+        sidebar.style.backgroundColor = "#f9f9f9";
+        sidebar.style.color = "black";
+        return;
+      }
 
-  const futureEvents = events.filter(e => e.start > now);
-  const next = futureEvents.sort((a, b) => a.start - b.start)[0];
+      const isToday = next.start.toDateString() === now.toDateString();
+      sidebar.style.backgroundColor = isToday ? "#8B0000" : "#f9f9f9";
+      sidebar.style.color = isToday ? "white" : "black";
 
-  // Check if today is a check-in date
-  const hasCheckInToday = events.some(e => e.start.toDateString() === todayDate);
-  const sidebar = document.getElementById("sidebar");
+      document.getElementById("next-booking").innerHTML = `
+        <strong>${next.title}</strong><br>
+        From: ${next.start.toLocaleDateString()}<br>
+        To: ${next.end.toLocaleDateString()}
+      `;
+    }
 
-  if (hasCheckInToday) {
-    sidebar.classList.add("sidebar-checkin");
-  } else {
-    sidebar.classList.remove("sidebar-checkin");
-  }
+    function updateTodayHeader() {
+      const now = new Date();
+      const options = { year: 'numeric', month: 'long', day: 'numeric' };
+      const dayOfWeek = now.toLocaleDateString(undefined, { weekday: 'long' });
+      document.getElementById("today").innerHTML = `
+        <div class="day">${dayOfWeek}</div>
+        <div>${now.toLocaleDateString(undefined, options)}</div>
+      `;
+    }
 
-  if (!next) {
-    document.getElementById("next-booking").innerText = "None upcoming.";
-    return;
-  }
+    function updateBrightness() {
+      const hour = new Date().getHours();
+      const isNight = hour < 6 || hour > 20;
+      document.body.style.opacity = isNight ? "0.5" : "1";
+    }
 
-  const startDate = next.start.toLocaleDateString(undefined, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
-  const endDate = next.end.toLocaleDateString(undefined, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
+    function shiftUI() {
+      const shiftX = Math.random() > 0.5 ? 1 : -1;
+      const shiftY = Math.random() > 0.5 ? 1 : -1;
+      document.body.style.transform = `translate(${shiftX}px, ${shiftY}px)`;
+    }
 
-  document.getElementById("next-booking").innerHTML = `
-    <div style="font-weight: 300; font-size: 1.4em; margin-bottom: 0.5em;">Next Booking</div>
-    <div style="font-weight: 700; font-size: 1.3em; margin-bottom: 0.5em;">${next.title}</div>
-    <div style="font-size: 1.1em; line-height: 1.4;">
-      <div><strong>From:</strong> ${startDate}</div>
-      <div><strong>To:</strong> ${endDate}</div>
-    </div>
-  `;
-}
+    function checkSleepMode() {
+      const hour = new Date().getHours();
+      const overlay = document.getElementById("sleep-overlay");
+      overlay.style.display = (hour >= 23 || hour < 6) ? "block" : "none";
+    }
 
-    const now = new Date();
-const weekday = now.toLocaleDateString(undefined, { weekday: 'long' });
-const date = now.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
-
-document.getElementById("today").innerHTML = `
-  <div style="font-weight: 300; font-size: 1.2em;">${weekday}</div>
-  <div style="font-weight: 600; font-size: 1.4em;">${date}</div>
-`;
+    updateTodayHeader();
+    updateBrightness();
     loadAllEvents();
     setInterval(loadAllEvents, 30 * 60 * 1000); // Every 30 minutes
+    setInterval(updateBrightness, 15 * 60 * 1000); // Every 15 minutes
+    setInterval(shiftUI, 60 * 60 * 1000); // Every hour
+    setInterval(checkSleepMode, 60 * 1000); // Every minute
   </script>
 </body>
 </html>
