@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Cabin:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="manifest.json">
+  <title>Coosewartha Booking Calendar</title>
+  <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
+ <style>
+    body {
+      margin: 0;
+      font-family: 'Cabin', sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      background: linear-gradient(120deg, #f8fafc 0%, #e0e7ef 100%);
+      animation: subtleShift 60s infinite alternate ease-in-out;
+    }
+    #calendar {
+      flex: 3;
+      padding: 2rem 2rem 2rem 2rem;
+      background: white;
+      border-radius: 24px 0 0 24px;
+      margin: 1rem 0 1rem 1rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+      animation: bgPulse 60s infinite alternate ease-in-out;
+    }
+    #sidebar {
+      flex: 1;
+      background: linear-gradient(120deg, #f9f9f9 60%, #e3e8ee 100%);
+      border-left: 1px solid #e0e7ef;
+      padding: 2rem 1.5rem;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      border-radius: 0 24px 24px 0;
+      margin: 1rem 1rem 1rem 0;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+      transition: background-color 0.3s ease, color 0.3s ease;
+      animation: bgPulse 60s infinite alternate ease-in-out;
+    }
+    #today {
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+    .sidebar-spacer {
+      flex-grow: 1;
+    }
+    .sidebar-checkin {
+      background: linear-gradient(120deg, #8B0000 80%, #b22222 100%) !important;
+      color: white;
+    }
+    .refresh-button {
+      display: inline-block;
+      margin-bottom: 1.5rem;
+      padding: 0.7rem 1.4rem;
+      background: linear-gradient(90deg, #007aff 80%, #0051a8 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1em;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .refresh-button:hover {
+      background: linear-gradient(90deg, #0051a8 80%, #007aff 100%);
+    }
+    .event-warning {
+      background-color: #ffcc00 !important;
+      color: black;
+      border-radius: 6px;
+      border: 1px solid #e6b800;
+    }
+    /* Make FullCalendar events a bit more rounded and modern */
+    .fc-event {
+      border-radius: 8px !important;
+      border: none !important;
+      font-size: 1em;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      padding: 2px 6px;
+    }
+    /* Make FullCalendar header more modern */
+    .fc-toolbar-title {
+      font-size: 2em !important;
+      font-weight: 700;
+      color: #22223b;
+      letter-spacing: 0.01em;
+    }
+    .fc-button {
+      border-radius: 6px !important;
+      border: none !important;
+      background: #007aff !important;
+      color: white !important;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .fc-button:hover, .fc-button:focus {
+      background: #0051a8 !important;
+    }
+    /* Responsive for mobile */
+    @media (max-width: 900px) {
+      body {
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+      }
+      #calendar, #sidebar {
+        margin: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      #calendar {
+        padding: 0.5rem;
+      }
+      #sidebar {
+        padding: 1rem;
+      }
+    }
+    @keyframes subtleShift {
+      0% { transform: translateY(0px); }
+      100% { transform: translateY(-0.3px); }
+    }
+    @keyframes bgPulse {
+      0% { filter: brightness(1); }
+      100% { filter: brightness(1.01); }
+    }
+  </style>
+</head>
+<body>
+  <div id="calendar"></div>
+  <div id="sidebar">
+    <button class="refresh-button" onclick="loadAllEvents()">Manual Refresh</button>
+    <h2 id="today"></h2>
+    <div class="sidebar-spacer"></div>
+    <div id="todays-booking"></div>
+    <div id="next-booking">Loading...</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ical.js@1.4.0/build/ical.min.js"></script>
+  <script>
+    const icalUrls = [
+      { url: "https://coosewarthacalendarcors.apctw.workers.dev?url=http://p24-calendars.icloud.com/published/2/ldqVU9LD0lRS4hLBnoo9qwlr76UkohNBxe5FJ-OGT7QAXlO6umx0JrAOoUyKYztPpEtoYlT0FYSLbZuGjMG3Jb7OSPw8mf49EH_s-xhOqew", color: 'green', source: 'Offline' },
+      { url: "https://coosewarthacalendarcors.apctw.workers.dev?url=https://ical.booking.com/v1/export?t=fbb4f61b-f5ed-41fb-8440-6e4f26fb640a", color: 'blue', source: 'Booking.com' },
+      { url: "https://coosewarthacalendarcors.apctw.workers.dev?url=http://www.vrbo.com/icalendar/15c40fc8965e4840ab839faea2870c29.ics", color: 'orange', source: 'VRBO' },
+      { url: "https://coosewarthacalendarcors.apctw.workers.dev?url=https://www.airbnb.co.uk/calendar/ical/19256915.ics?s=b538b39d60388622bfdf6431f594f647", color: 'red', source: 'Airbnb', isAirbnb: true }
+    ];
+
+    const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+      initialView: 'dayGridMonth',
+      events: [],
+      displayEventTime: false,
+      eventDidMount: function(info) {
+        if (info.event.extendedProps.overlap) {
+          info.el.classList.add("event-warning");
+        }
+      }
+    });
+    calendar.render();
+
+    function parseICS(icsText, source, color, isAirbnb = false) {
+      const jcalData = ICAL.parse(icsText);
+      const comp = new ICAL.Component(jcalData);
+      const vevents = comp.getAllSubcomponents("vevent");
+      return vevents.map((vevent) => {
+        const event = new ICAL.Event(vevent);
+        const start = event.startDate.toJSDate();
+        const end = event.endDate.toJSDate();
+        let title = `${event.summary} (${source})`;
+        if (isAirbnb && event.description) {
+          title = `${event.description.trim()} (${source})`;
+        }
+        return {
+          title,
+          start,
+          end,
+          color,
+          extendedProps: { source }
+        };
+      });
+    }
+
+    function eventsOverlap(e1, e2) {
+      return e1.start < e2.end && e1.end > e2.start;
+    }
+
+    async function loadAllEvents() {
+      const allEvents = [];
+      document.getElementById("next-booking").innerText = "Loading...";
+      document.getElementById("todays-booking").innerText = "";
+
+      for (const { url, color, source, isAirbnb } of icalUrls) {
+        try {
+          const response = await fetch(url);
+          const text = await response.text();
+          let events = parseICS(text, source, color, isAirbnb);
+
+          if (isAirbnb) {
+            events = events.filter((airbnbEvent) => {
+              return !allEvents.some(existingEvent => {
+                return (
+                  existingEvent.start.getTime() === airbnbEvent.start.getTime() &&
+                  existingEvent.end.getTime() === airbnbEvent.end.getTime()
+                );
+              });
+            });
+          }
+
+          allEvents.push(...events);
+        } catch (err) {
+          console.error(`Failed to load ${source}:`, err);
+        }
+      }
+
+      detectOverlaps(allEvents);
+      updateNextBooking(allEvents);
+      calendar.removeAllEvents();
+      calendar.addEventSource(allEvents);
+    }
+
+    function detectOverlaps(events) {
+      events.forEach((e, idx) => {
+        for (let j = idx + 1; j < events.length; j++) {
+          const e2 = events[j];
+          if (eventsOverlap(e, e2)) {
+            e.extendedProps.overlap = true;
+            e2.extendedProps.overlap = true;
+          }
+        }
+      });
+    }
+
+    function updateNextBooking(events) {
+      const now = new Date();
+      const todayDate = now.toDateString();
+
+      const todaysBooking = events.find(e => e.start.toDateString() === todayDate);
+      const futureEvents = events.filter(e => e.start > now);
+      const next = futureEvents.sort((a, b) => a.start - b.start)[0];
+
+      const sidebar = document.getElementById("sidebar");
+      if (todaysBooking) {
+        sidebar.classList.add("sidebar-checkin");
+      } else {
+        sidebar.classList.remove("sidebar-checkin");
+      }
+
+      const formatDate = (date) => date.toLocaleDateString(undefined, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+
+      if (todaysBooking) {
+        document.getElementById("todays-booking").innerHTML = `
+          <div style="font-weight: 300; font-size: 1.4em; margin-bottom: 0.5em;">Today's Booking</div>
+          <div style="font-weight: 700; font-size: 1.3em; margin-bottom: 0.5em;">${todaysBooking.title}</div>
+          <div style="font-size: 1.1em; line-height: 1.4;">
+            <div><strong>From:</strong> ${formatDate(todaysBooking.start)}</div>
+            <div><strong>To:</strong> ${formatDate(todaysBooking.end)}</div>
+          </div>
+        `;
+      }
+
+      if (!next) {
+        document.getElementById("next-booking").innerText = "None upcoming.";
+        return;
+      }
+
+      document.getElementById("next-booking").innerHTML = `
+        <div style="font-weight: 300; font-size: 1.4em; margin-top: 1.5em; margin-bottom: 0.5em;">Next Booking</div>
+        <div style="font-weight: 700; font-size: 1.3em; margin-bottom: 0.5em;">${next.title}</div>
+        <div style="font-size: 1.1em; line-height: 1.4;">
+          <div><strong>From:</strong> ${formatDate(next.start)}</div>
+          <div><strong>To:</strong> ${formatDate(next.end)}</div>
+        </div>
+      `;
+    }
+
+    const now = new Date();
+    const weekday = now.toLocaleDateString(undefined, { weekday: 'long' });
+    const date = now.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+
+    document.getElementById("today").innerHTML = `
+      <div style="font-weight: 300; font-size: 1.2em;">${weekday}</div>
+      <div style="font-weight: 600; font-size: 1.4em;">${date}</div>
+    `;
+
+    loadAllEvents();
+    setInterval(loadAllEvents, 30 * 60 * 1000);
+  </script>
+</body>
+</html>
